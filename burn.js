@@ -17,9 +17,6 @@ const privateKey = "cNR2qRtwVf6hrRVi9Kfomj59KSJQhjChqLG58au8c22aJt4G9uwP";
 const runeId = "4257852:123"; // Replace with your actual rune ID
 const amountToBurn = 500; // Amount of runes to burn
 
-// Burn address - This is a standard OP_RETURN address for Bitcoin
-const BURN_ADDRESS = "tb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqudgl6";
-
 async function burnRunes() {
 	try {
 		console.log(`Burning ${amountToBurn} of rune ${runeId}`);
@@ -59,7 +56,7 @@ async function burnRunes() {
 			},
 		});
 
-		// Create the RUNE_BURN envelope by sending to burn address
+		// Create the RUNE_BURN envelope
 		const runeBurnData = [
 			"RUNE",
 			"BURN",
@@ -81,10 +78,10 @@ async function burnRunes() {
 			value: 0,
 		});
 
-		// Add output to burn address (minimal amount required)
+		// Add an output to hold the burning runes (we'll send to the same source address)
 		psbt.addOutput({
-			address: BURN_ADDRESS,
-			value: 546, // Dust limit
+			address: sourceAddress,
+			value: 546, // Dust limit - required for protocol validity
 		});
 
 		// Add change output (minus fees)
@@ -95,10 +92,16 @@ async function burnRunes() {
 			throw new Error("Insufficient funds to cover transaction fees");
 		}
 
-		psbt.addOutput({
-			address: sourceAddress,
-			value: changeAmount,
-		});
+		// If there's change to return
+		if (changeAmount > 546) {
+			psbt.addOutput({
+				address: sourceAddress,
+				value: changeAmount,
+			});
+		} else {
+			// If change is too small, add it to the fee
+			console.log("Change amount too small, adding to fee");
+		}
 
 		// Sign transaction
 		const keyPair = ECPair.fromWIF(privateKey, network);
@@ -110,7 +113,7 @@ async function burnRunes() {
 		const txHex = tx.toHex();
 		console.log("Transaction created:");
 		console.log("Transaction size:", txHex.length / 2, "bytes");
-		console.log("Transaction fees:", fee, "satoshis");
+		console.log("Transaction hex:", txHex);
 
 		// Broadcast transaction
 		console.log("Broadcasting transaction...");
@@ -130,6 +133,7 @@ async function burnRunes() {
 		console.error("Error burning runes:", error.message);
 		if (error.response) {
 			console.error("API Response data:", error.response.data);
+			console.error("API Response status:", error.response.status);
 		}
 	}
 }
