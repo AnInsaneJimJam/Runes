@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RuneCoinn</title>
+  <title>Transfer - RuneCoinn</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
     :root {
@@ -425,21 +425,6 @@
       border-left: 4px solid var(--error);
     }
 
-    /* Checkbox Styling */
-    .form-group input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      margin-right: 8px;
-      accent-color: var(--primary-color);
-    }
-
-    .form-group label[for="token-open-mint"] {
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-    }
-
     /* Loading Overlay */
     .loading-overlay {
       position: fixed;
@@ -577,10 +562,10 @@
     <div class="logo">RuneCoinn</div>
     <nav>
       <ul>
-        <li><a href="index.html" class="active"><i class="fas fa-home"></i> Home</a></li>
+        <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
         <li><a href="etch.html"><i class="fas fa-pen"></i> Etch</a></li>
         <li><a href="mint.html"><i class="fas fa-coins"></i> Mint</a></li>
-        <li><a href="transfer.html"><i class="fas fa-exchange-alt"></i> Transfer</a></li>
+        <li><a href="transfer.html" class="active"><i class="fas fa-exchange-alt"></i> Transfer</a></li>
         <li><a href="burn.html"><i class="fas fa-fire"></i> Burn</a></li>
         <li><a href="#"><i class="fas fa-compass"></i> Explore</a></li>
       </ul>
@@ -604,57 +589,27 @@
     <main class="container">
       <div class="main-content">
         <div class="card">
-          <h2>Create New Rune Token</h2>
-          <form id="token-form">
+          <h2>Transfer Rune Tokens</h2>
+          <form id="transfer-form">
             <div class="form-group">
-              <label for="token-name">Token Name (max 28 chars)</label>
-              <input type="text" id="token-name" maxlength="28" placeholder="TOKEN_NAME" required>
-              <div class="error-message">Token name must be 1-28 characters</div>
+              <label for="rune-id">Rune ID</label>
+              <input type="text" id="rune-id" placeholder="Enter Rune ID" required>
+              <div class="error-message">Please enter a valid Rune ID</div>
             </div>
             
             <div class="form-group">
-              <label for="token-symbol">Token Symbol (max 4 chars)</label>
-              <input type="text" id="token-symbol" maxlength="4" placeholder="TKN" required>
-              <div class="error-message">Token symbol must be 1-4 characters</div>
+              <label for="recipient-address">Recipient Address</label>
+              <input type="text" id="recipient-address" placeholder="Enter recipient's Bitcoin address" required>
+              <div class="error-message">Please enter a valid Bitcoin address</div>
             </div>
             
             <div class="form-group">
-              <label for="token-supply">Total Supply</label>
-              <input type="number" id="token-supply" placeholder="1000000" min="1" required>
-              <div class="error-message">Total supply must be a positive number</div>
+              <label for="transfer-amount">Amount to Transfer</label>
+              <input type="number" id="transfer-amount" placeholder="1000" min="1" required>
+              <div class="error-message">Amount must be a positive number</div>
             </div>
             
-            <div class="form-group">
-              <label for="token-decimals">Decimals</label>
-              <input type="number" id="token-decimals" placeholder="18" min="0" max="18" required>
-              <div class="error-message">Decimals must be between 0 and 18</div>
-            </div>
-            
-            <div class="form-group">
-              <label for="token-premine">Premine (your initial allocation)</label>
-              <input type="number" id="token-premine" placeholder="5000" min="0" required>
-              <div class="error-message">Premine must be a non-negative number</div>
-            </div>
-            
-            <div class="form-group">
-              <label for="token-mint-cap">Mint Cap</label>
-              <input type="number" id="token-mint-cap" placeholder="1000000" min="0" required>
-              <div class="error-message">Mint cap must be a non-negative number</div>
-            </div>
-            
-            <div class="form-group">
-              <label for="token-mint-amount">Mint Amount (per transaction)</label>
-              <input type="number" id="token-mint-amount" placeholder="1000" min="1" required>
-              <div class="error-message">Mint amount must be a positive number</div>
-            </div>
-            
-            <div class="form-group">
-              <label for="token-open-mint">
-                <input type="checkbox" id="token-open-mint"> Open Mint (allow public minting)
-              </label>
-            </div>
-            
-            <button type="button" id="create-token" onclick="handleCreateToken()" disabled><i class="fas fa-coins"></i> Create Token</button>
+            <button type="button" id="transfer-token" onclick="handleTransferToken()" disabled><i class="fas fa-exchange-alt"></i> Transfer Tokens</button>
           </form>
         </div>
 
@@ -683,7 +638,7 @@
 
   <!-- Required Scripts -->
   <script src="https://bundle.run/buffer@6.0.3"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib-browser@5.1.7/bitcoinjs.min.js" ></script>
+  <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib-browser@5.1.7/bitcoinjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bitcoinjs-lib/5.1.7/bitcoinjs-lib.min.js"></script>
   <script>
     // Make bitcoinjs-lib available globally
