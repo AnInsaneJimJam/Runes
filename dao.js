@@ -997,7 +997,37 @@ async function populateProposalsDropdown(proposerAddress) {
 // Handle getting voting results
 async function handleGetResults() {
 
-    // Display yes:1 no: 0 abstain:0
+    onst loading = document.getElementById("loading");
+		loading.style.display = "block";
+
+		// Simulate loading delay (can be removed in production)
+		setTimeout(() => {
+			// Hide loading indicator
+			loading.style.display = "none";
+
+			// Display hardcoded results
+			displayResults({
+				title: "Test",
+				description: "Test.",
+				options: ["YES", "NO", "ABSTAIN"],
+				results: {
+					YES: 1,
+					NO: 0,
+					ABSTAIN: 0,
+				},
+				totalVotes: 1,
+				quorum: 1000,
+				quorumMet: false,
+				endBlock: "N/A",
+				status: "Active",
+				voters: [
+					{
+						address: "tb1qkz9d6g4m39626wlrn9m6unv5jvtrk2ktxqd2lu",
+						votes: [{ option: "YES", weight: 1 }],
+					},
+				],
+			});
+		}, 500);
     const resultsContainer = document.getElementById("results-container");
 
 
@@ -1043,6 +1073,125 @@ async function handleGetResults() {
         // Hide loading indicator
         document.getElementById("results-loading").style.display = "none";
     }
+}
+
+function displayResults(data) {
+	const resultsContainer = document.getElementById("vote-results");
+	resultsContainer.innerHTML = "";
+
+	// Create results box
+	const resultsBox = document.createElement("div");
+	resultsBox.className = "results-box";
+
+	// Add proposal info
+	const proposalInfo = document.createElement("div");
+	proposalInfo.innerHTML = `
+    <h3>${data.title}</h3>
+    <p>${data.description}</p>
+    <p><strong>Status:</strong> ${data.status}</p>
+    <p><strong>End Block:</strong> ${data.endBlock}</p>
+  `;
+	resultsBox.appendChild(proposalInfo);
+
+	// Add quorum info
+	const quorumInfo = document.createElement("div");
+	quorumInfo.innerHTML = `
+    <p><strong>Total Votes:</strong> ${data.totalVotes}</p>
+    <p><strong>Quorum Requirement:</strong> ${data.quorum}</p>
+    <p class="${data.quorumMet ? "quorum-met" : "quorum-not-met"}">
+      <strong>Quorum Status:</strong> ${data.quorumMet ? "Met" : "Not Met"}
+    </p>
+  `;
+	resultsBox.appendChild(quorumInfo);
+
+	// Add voting results
+	const votingResults = document.createElement("div");
+	votingResults.innerHTML = "<h3>Voting Results</h3>";
+
+	// Calculate total for percentage
+	const total = data.totalVotes;
+
+	// Add each option with progress bar
+	data.options.forEach((option) => {
+		const voteCount = data.results[option] || 0;
+		const percentage =
+			total > 0 ? ((voteCount / total) * 100).toFixed(2) : 0;
+
+		const optionElement = document.createElement("div");
+		optionElement.className = "vote-option";
+		optionElement.innerHTML = `
+      <p><strong>${option}:</strong> ${voteCount} votes (${percentage}%)</p>
+      <div class="progress-bar">
+        <div class="progress" style="width: ${percentage}%"></div>
+      </div>
+    `;
+
+		votingResults.appendChild(optionElement);
+	});
+
+	resultsBox.appendChild(votingResults);
+
+	// Add winner section if votes exist
+	if (total > 0) {
+		// Find winner (option with most votes)
+		let winningOption = data.options[0];
+		let maxVotes = data.results[winningOption] || 0;
+
+		data.options.forEach((option) => {
+			const votes = data.results[option] || 0;
+			if (votes > maxVotes) {
+				winningOption = option;
+				maxVotes = votes;
+			}
+		});
+
+		const winnerSection = document.createElement("div");
+		winnerSection.className = "winner-section";
+		winnerSection.innerHTML = `
+      <h3>Current Leading Option</h3>
+      <p><strong>${winningOption}</strong> with ${maxVotes} votes</p>
+    `;
+
+		resultsBox.appendChild(winnerSection);
+	}
+
+	// Add voters list
+	const votersSection = document.createElement("div");
+	votersSection.innerHTML = "<h3>Voters</h3>";
+
+	const votersList = document.createElement("div");
+	votersList.className = "voters-list";
+
+	if (data.voters && data.voters.length > 0) {
+		data.voters.forEach((voter) => {
+			const voterItem = document.createElement("div");
+			voterItem.className = "voter-item";
+
+			let votesHtml = "";
+			if (voter.votes && voter.votes.length > 0) {
+				votesHtml = '<ul class="votes-list">';
+				voter.votes.forEach((vote) => {
+					votesHtml += `<li>${vote.option}: ${vote.weight} votes</li>`;
+				});
+				votesHtml += "</ul>";
+			}
+
+			voterItem.innerHTML = `
+        <p><strong>Address:</strong> ${voter.address}</p>
+        ${votesHtml}
+      `;
+
+			votersList.appendChild(voterItem);
+		});
+	} else {
+		votersList.innerHTML = "<p>No votes recorded yet.</p>";
+	}
+
+	votersSection.appendChild(votersList);
+	resultsBox.appendChild(votersSection);
+
+	// Add results to container
+	resultsContainer.appendChild(resultsBox);
 }
 
 // Get all votes for a specific proposal
