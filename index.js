@@ -437,6 +437,7 @@ async function mintRune(runeId, mintAmount, userAddress) {
 			value: 0,
 		});
 
+
 		// Add dust output (required for rune minting)
 		psbt.addOutput({
 			address: userAddress,
@@ -451,7 +452,7 @@ async function mintRune(runeId, mintAmount, userAddress) {
 		});
 
 		// Convert PSBT to base64 and sign
-		const psbtBase64 = psbt.toBase64();
+		const psbtBase64 = psbt.toHex();
 		const provider =
 			window.btc || window.bitcoinjsProvider || window.unisat;
 
@@ -828,10 +829,12 @@ async function transferRune(runeId, amountToTransfer, sourceAddress, destination
         const psbt = new bitcoinjs.Psbt({ network });
 
         // Get scriptPubKey for the input
-        const addressInfoResponse = await fetch(
-            `https://mempool.emzy.de/testnet/api/address/${sourceAddress}`
-        );
-        const addressInfo = await addressInfoResponse.json();
+      	const addressInfoResponse = await fetch(
+			`https://mempool.emzy.de/testnet/api/address/${sourceAddress}`
+		);
+		const addressInfo = await addressInfoResponse.json();
+		console.log("Address Info:", addressInfo);
+
         const scriptPubKey =
             addressInfo.scriptPubKey ||
             bitcoinjs.address
@@ -849,7 +852,7 @@ async function transferRune(runeId, amountToTransfer, sourceAddress, destination
         });
 
         // Create the RUNE_TRANSFER envelope
-        const runeTransferData = encodeTransferRunestone(runeId, amountToTransfer);
+        const runeTransferData = encodeTransferRunestone(runeId, amountToTransfer); // ! Need to check
         const data = Buffer.from(runeTransferData, "hex");
 
         if (data.length > 80) {
@@ -862,7 +865,7 @@ async function transferRune(runeId, amountToTransfer, sourceAddress, destination
         psbt.addOutput({
             script: bitcoinjs.script.compile([
                 bitcoinjs.opcodes.OP_RETURN,
-                data,
+                data
             ]),
             value: 0,
         });
@@ -893,75 +896,63 @@ async function transferRune(runeId, amountToTransfer, sourceAddress, destination
         }
 
         // Convert PSBT to base64 for signing
-        const psbtBase64 = psbt.toBase64();
-        const provider =
-            window.btc || window.bitcoinjsProvider || window.unisat;
+		// ! Need to check this
+       try {
+			// Convert PSBT to hex format for signing (not base64)
+			const psbtHex = psbt.toHex();
+			const provider =
+				window.btc || window.bitcoinjsProvider || window.unisat;
 
-        if (!provider || !provider.signPsbt) {
-            throw new Error("Wallet does not support PSBT signing");
-        }
+			if (!provider || !provider.signPsbt) {
+				throw new Error("Wallet does not support PSBT signing");
+			}
 
-        try {
-            const signedPsbtHex = await provider.signPsbt(psbtBase64);
-            console.log("Wallet returned:", signedPsbtHex);
+			// Sign with the wallet
+			const signedPsbtHex = await provider.signPsbt(psbtHex);
+			console.log("Wallet returned:", signedPsbtHex);
 
-            // Parse the hex PSBT
-            const signedPsbt = bitcoinjs.Psbt.fromHex(signedPsbtHex, {
-                network,
-            });
+			// Parse the signed PSBT
+			const signedPsbt = bitcoinjs.Psbt.fromHex(signedPsbtHex, {
+				network,
+			});
 
-            // Try to extract transaction
-            let txHex;
-            try {
-                txHex = signedPsbt.extractTransaction().toHex();
-                console.log("Transaction size:", txHex.length / 2, "bytes");
-            } catch (extractError) {
-                console.log(
-                    "Could not extract directly, trying alternative methods"
-                );
+			// Finalize all inputs if not already finalized
+			try {
+				signedPsbt.finalizeAllInputs();
+			} catch (e) {
+				// If already finalized, this will throw an error, which is fine
+				console.log("Inputs already finalized");
+			}
 
-                // If the wallet supports better methods, use them
-                if (provider.pushPsbt) {
-                    return await provider.pushPsbt(signedPsbtHex);
-                }
+			// Extract transaction directly to hex
+			const txHex = signedPsbt.extractTransaction().toHex();
+			console.log("Extracted transaction hex:", txHex);
 
-                if (provider.pushTx || provider.sendRawTransaction) {
-                    const pushMethod =
-                        provider.pushTx || provider.sendRawTransaction;
-                    return await pushMethod(signedPsbtHex);
-                }
+			// Broadcast the raw transaction
+			const broadcastResponse = await fetch(
+				"https://mempool.emzy.de/testnet/api/tx",
+				{
+					method: "POST",
+					body: txHex,
+					headers: { "Content-Type": "text/plain" },
+				}
+			);
 
-                throw new Error(
-                    "Cannot extract transaction: " + extractError.message
-                );
-            }
+			const txId = await broadcastResponse.text();
+			console.log("Runes transfer successful!");
+			console.log("Transaction ID:", txId);
+			console.log(
+				`Transferred ${amountToTransfer} of rune ${runeId} to ${destinationAddress}`
+			);
 
-            // Broadcast transaction
-            console.log("Broadcasting transaction...");
-            const broadcastResponse = await fetch(
-                "https://mempool.emzy.de/testnet/api/tx",
-                {
-                    method: "POST",
-                    body: txHex,
-                    headers: { "Content-Type": "text/plain" },
-                }
-            );
-
-            const txId = await broadcastResponse.text();
-            console.log("Rune transfer successful!");
-            console.log("Transaction ID:", txId);
-            console.log(`Transferred ${amountToTransfer} of rune ${runeId} to ${destinationAddress}`);
-            console.log("You can check this transaction at:");
-            console.log(`https://mempool.emzy.de/testnet/tx/${txId}`);
-
-            return txId;
-        } catch (err) {
-            console.error(
-                "Error during transaction signing or broadcast:",
-                err
-            );
-            throw err;
-        }
+			return txId;
+		} catch (err) {
+			console.error(
+				"Error during transaction signing or broadcast:",
+				err
+			);
+			throw err;
+		}
     } catch (error) {
         console.error("Error transferring runes:", error.message);
         if (error.response) {
