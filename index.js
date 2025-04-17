@@ -5,6 +5,7 @@
 document.addEventListener("DOMContentLoaded", () => {
 	const connectWalletBtn = document.getElementById("connect-wallet");
 	const createTokenBtn = document.getElementById("create-token");
+	const mintTokenBtn = document.getElementById("mint-token");
 	const walletStatusEl = document.getElementById("wallet-status");
 
 	// User wallet state
@@ -16,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	// Initialize wallet connection button
 	connectWalletBtn.addEventListener("click", connectWallet);
 	createTokenBtn.addEventListener("click", handleCreateToken);
+	mintTokenBtn.addEventListener("click", handleMintToken);
 
 	// Check if wallet is already connected
 	checkWalletConnection();
@@ -23,9 +25,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Check if user has a connected wallet already
 async function checkWalletConnection() {
-	// Check if we have a Bitcoin wallet extension available
-	if (window.btc || window.BitcoinProvider || window.unisat) {
-		const provider = window.btc || window.BitcoinProvider || window.unisat;
+	// Check if we have a bitcoinjs wallet extension available
+	if (window.btc || window.bitcoinjsProvider || window.unisat) {
+		const provider = window.btc || window.bitcoinjsProvider || window.unisat;
 		try {
 			const accounts = await provider.requestAccounts();
 			if (accounts && accounts.length > 0) {
@@ -40,12 +42,12 @@ async function checkWalletConnection() {
 // Connect wallet function
 async function connectWallet() {
 	try {
-		// Check for different Bitcoin wallet providers
-		const provider = window.btc || window.BitcoinProvider || window.unisat;
+		// Check for different bitcoinjs wallet providers
+		const provider = window.btc || window.bitcoinjsProvider || window.unisat;
 
 		if (!provider) {
 			alert(
-				"No Bitcoin wallet extension found. Please install UniSat Wallet, Xverse, or another Bitcoin wallet extension."
+				"No bitcoinjs wallet extension found. Please install UniSat Wallet, Xverse, or another bitcoinjs wallet extension."
 			);
 			return;
 		}
@@ -165,7 +167,7 @@ async function encodeRunestone(token) {
 	// Fetch current block height for startBlock
 	try {
 		const response = await fetch(
-			"https://mempool.space/testnet/api/blocks/tip/height"
+			"https://mempool.emzy.de/testnet/api/blocks/tip/height"
 		);
 		const currentBlock = await response.json();
 		token.startBlock = currentBlock + 10;
@@ -206,121 +208,255 @@ function stringToHex(str) {
 // Etch the rune using wallet to sign transaction
 async function etchRune(token, userAddress) {
 	try {
-		// This implementation requires bitcoinjs-lib, which needs to be loaded via script tag
-		// Check if bitcoinjs-lib is loaded
-		// if (typeof bitcoin === "undefined") {
-		// 	throw new Error(
-		// 		"bitcoinjs-lib is not loaded. Please include it in your HTML file."
-		// 	);
-		// }
+	  // Ensure bitcoinjs is loaded
+	  if (typeof bitcoinjs === "undefined") {
+		throw new Error("bitcoinjs-lib is not loaded");
+	  }
+  
+	  // Fetch UTXOs
+	  const utxoResponse = await fetch(`https://mempool.emzy.de/testnet/api/address/${userAddress}/utxo`);
+	  const utxos = await utxoResponse.json();
+	  console.log("Fetched UTXOs:", utxos);
+	  const utxo = utxos.find((u) => u.value >= 10000); // Ensure sufficient balance
+	  if (!utxo) throw new Error("Insufficient tBTC in your wallet");
+  
+	  const network = bitcoinjs.networks.testnet;
+	  const psbt = new bitcoinjs.Psbt({ network });
+  
+	  // Add input
+	  const addressInfoResponse = await fetch(`https://mempool.emzy.de/testnet/api/address/${userAddress}`);
+	  const addressInfo = await addressInfoResponse.json();
+	  const scriptPubKey = addressInfo.scriptPubKey || bitcoinjs.address.toOutputScript(userAddress, network).toString("hex");
+  
+	  psbt.addInput({
+		hash: utxo.txid,
+		index: utxo.vout,
+		witnessUtxo: {
+		  script: Buffer.from(scriptPubKey, "hex"),
+		  value: utxo.value,
+		},
+	  });
+  
+	  // Add OP_RETURN with Runestone
+	  const runestoneData = await encodeRunestone(token);
+	  console.log("Runestone Data:", runestoneData);
+	  const data = Buffer.from(runestoneData, "hex");
+	  console.log("Data Buffer:", data);
+	  psbt.addOutput({
+		script: bitcoinjs.script.compile([bitcoinjs.opcodes.OP_RETURN, data]),
+		value: 0,
+	  });
+	  console.log("Added OP_RETURN output");
+	  // Add change output
+	  const fee = 1000;
+	  psbt.addOutput({
+		address: userAddress,
+		value: utxo.value - 546 - fee, // Dust limit + fee
+	  });
+	  console.log("Added change output");
+	  console.log("PSBT created:", psbt);
+	  console.log("PSBT inputs:", psbt.txInputs);
+	  console.log("PSBT outputs:", psbt.txOutputs);
+  
+	  // Convert PSBT to base64 and sign
+	  const psbtBase64 = psbt.toBase64();
+	  const provider = window.btc || window.bitcoinjsProvider || window.unisat;
+  
+	  if (!provider || !provider.signPsbt) {
+		throw new Error("Wallet does not support PSBT signing");
+	  }
+  
+	  try {
+		signedPsbtBase64 = await provider.signPsbt(psbtBase64);
+		console.log("Wallet returned:", signedPsbtBase64);
+	} catch (err) {
+		console.error("Error while signing PSBT:", err);
+		alert("Signing failed: " + err.message);
+		throw err; // or handle gracefully
+	}
+	    // Extract the raw transaction for broadcasting
+     
+	 const signedPsbt = bitcoinjs.Psbt.fromHex(signedPsbtBase64, { network });
+  
+      // May not be needed if the wallet already finalized
+     const txHex = signedPsbt.extractTransaction().toHex()
 
-		// Fetch UTXOs
-		const utxoResponse = await fetch(
-			`https://mempool.space/testnet/api/address/${userAddress}/utxo`
-		);
-		const utxos = await utxoResponse.json();
-		const utxo = utxos.find((u) => u.value >= 10000); // 0.0001 tBTC
-		if (!utxo) throw new Error("Insufficient tBTC in your wallet");
-
-		// Get the Bitcoin network from global bitcoinjs-lib
-		const network = bitcoin.networks.testnet;
-
-		// Create PSBT
-		const psbt = new bitcoin.Psbt({ network });
-
-		// Get address info for input
-		const addressInfoResponse = await fetch(
-			`https://mempool.space/testnet/api/address/${userAddress}`
-		);
-		const addressInfo = await addressInfoResponse.json();
-		const scriptPubKey =
-			addressInfo.scriptPubKey ||
-			bitcoin.address
-				.toOutputScript(userAddress, network)
-				.toString("hex");
-
-		// Add input
-		psbt.addInput({
-			hash: utxo.txid,
-			index: utxo.vout,
-			witnessUtxo: {
-				script: Buffer.from(scriptPubKey, "hex"),
-				value: utxo.value,
-			},
-		});
-
-		// Add OP_RETURN with Runestone
-		const runestoneData = await encodeRunestone(token);
-		const data = Buffer.from(runestoneData, "hex");
-
-		// Add OP_RETURN output
-		psbt.addOutput({
-			script: bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, data]),
-			value: 0,
-		});
-
-		// Add premine output (tokens to user address)
-		psbt.addOutput({
-			address: userAddress,
-			value: 546, // Dust limit
-		});
-
-		// Add change output
-		const fee = 1000; // Adjust based on testnet
-		psbt.addOutput({
-			address: userAddress,
-			value: utxo.value - 546 - fee,
-		});
-
-		// Get the PSBT in base64 format
-		const psbtBase64 = psbt.toBase64();
-
-		// Create a popup to sign transaction
-		const provider = window.btc || window.BitcoinProvider || window.unisat;
-
-		if (!provider || !provider.signPsbt) {
-			throw new Error(
-				"Your wallet doesn't support PSBT signing. Please use UniSat Wallet."
-			);
-		}
-
-		// Sign the PSBT using wallet (this will trigger a popup)
-		const signedPsbtBase64 = await provider.signPsbt(psbtBase64);
-
-		// Convert back to PSBT
-		const signedPsbt = bitcoin.Psbt.fromBase64(signedPsbtBase64, {
-			network,
-		});
-
-		// Finalize and extract transaction
-		signedPsbt.finalizeAllInputs();
-		const txHex = signedPsbt.extractTransaction().toHex();
-
-		// Broadcast
-		const broadcastResponse = await fetch(
-			"https://mempool.space/testnet/api/tx",
-			{
-				method: "POST",
-				body: txHex,
-				headers: {
-					"Content-Type": "text/plain",
-				},
-			}
-		);
-
-		const txId = await broadcastResponse.text();
-		console.log("Etched! TxID:", txId);
-		console.log(
-			"Rune ID: Check block height and tx index after confirmation"
-		);
-
-		return txId; // Return the transaction ID
+  
+	  // Broadcast
+	  const broadcastResponse = await fetch("https://mempool.emzy.de/testnet/api/tx", {
+		method: "POST",
+		body: txHex,
+		headers: { "Content-Type": "text/plain" },
+	  });
+  
+	  const txId = await broadcastResponse.text();
+	  console.log("Etched! TxID:", txId);
+  
+	  return txId;
 	} catch (error) {
-		console.error("Error:", error.message);
-		throw error;
+	  console.error("Error:", error.message);
+	  throw error;
 	}
 }
 
+function encodeMintRunestone(runeId, amount) {
+	return stringToHex(`RUNE:MINT:${runeId}:${amount}`);
+}
+
+async function handleMintToken() {
+  // Get mint details from form
+  const runeId = document.getElementById("mint-rune-id").value;
+  const amount = parseInt(document.getElementById("mint-amount").value);
+
+  // Validate inputs
+  if (!runeId || runeId.trim() === "") {
+    alert("Please enter a valid Rune ID");
+    return;
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    alert("Please enter a valid amount to mint");
+    return;
+  }
+
+  // Ensure wallet is connected
+  if (!userWallet.connected) {
+    alert("Please connect your wallet first");
+    return;
+  }
+
+  try {
+    // Show loading indicator
+    document.getElementById("loading").style.display = "block";
+
+    // Mint the rune
+    await mintRune(runeId, amount, userWallet.address);
+
+    // Hide loading indicator
+    document.getElementById("loading").style.display = "none";
+
+    // Show success message
+    alert("Rune minted successfully!");
+  } catch (error) {
+    console.error("Error minting token:", error);
+    alert("Failed to mint token: " + error.message);
+
+    // Hide loading indicator
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+// Mint the rune using wallet to sign transaction
+async function mintRune(runeId, mintAmount, userAddress) {
+  try {
+    // Ensure bitcoinjs is loaded
+    if (typeof bitcoinjs === "undefined") {
+      throw new Error("bitcoinjs-lib is not loaded");
+    }
+
+    // Fetch UTXOs
+    const utxoResponse = await fetch(`https://mempool.emzy.de/testnet/api/address/${userAddress}/utxo`);
+    const utxos = await utxoResponse.json();
+    console.log("Fetched UTXOs:", utxos);
+    const utxo = utxos.find((u) => u.value >= 100); // Ensure sufficient balance
+    if (!utxo) throw new Error("Insufficient tBTC in your wallet");
+
+    const network = bitcoinjs.networks.testnet;
+    const psbt = new bitcoinjs.Psbt({ network });
+
+    // Add input
+    const addressInfoResponse = await fetch(`https://mempool.emzy.de/testnet/api/address/${userAddress}`);
+    const addressInfo = await addressInfoResponse.json();
+    const scriptPubKey = addressInfo.scriptPubKey || bitcoinjs.address.toOutputScript(userAddress, network).toString("hex");
+
+    psbt.addInput({
+      hash: utxo.txid,
+      index: utxo.vout,
+      witnessUtxo: {
+        script: Buffer.from(scriptPubKey, "hex"),
+        value: utxo.value,
+      },
+    });
+
+    // Add OP_RETURN with Mint Runestone
+    const runestoneData = encodeMintRunestone(runeId, mintAmount);
+    console.log("Mint Runestone Data:", runestoneData);
+    const data = Buffer.from(runestoneData, "hex");
+    
+    psbt.addOutput({
+      script: bitcoinjs.script.compile([bitcoinjs.opcodes.OP_RETURN, data]),
+      value: 0,
+    });
+    
+    // Add dust output (required for rune minting)
+    psbt.addOutput({
+      address: userAddress,
+      value: 546, // Dust limit
+    });
+    
+    // Add change output
+    const fee = 1000;
+    psbt.addOutput({
+      address: userAddress,
+      value: utxo.value - 546 - fee,
+    });
+    
+    // Convert PSBT to base64 and sign
+    const psbtBase64 = psbt.toBase64();
+    const provider = window.btc || window.bitcoinjsProvider || window.unisat;
+
+    if (!provider || !provider.signPsbt) {
+      throw new Error("Wallet does not support PSBT signing");
+    }
+
+    try {
+      const signedPsbtHex = await provider.signPsbt(psbtBase64);
+      console.log("Wallet returned:", signedPsbtHex);
+      
+      // Parse the hex PSBT
+      const signedPsbt = bitcoinjs.Psbt.fromHex(signedPsbtHex, { network });
+      
+      // Try to extract without finalizing
+      let txHex;
+      try {
+        txHex = signedPsbt.extractTransaction().toHex();
+      } catch (extractError) {
+        console.log("Could not extract directly, trying alternative methods");
+        
+        // If the wallet supports better methods, use them
+        if (provider.pushPsbt) {
+          return await provider.pushPsbt(signedPsbtHex);
+        }
+        
+        if (provider.pushTx || provider.sendRawTransaction) {
+          const pushMethod = provider.pushTx || provider.sendRawTransaction;
+          return await pushMethod(signedPsbtHex);
+        }
+        
+        throw new Error("Cannot extract transaction: " + extractError.message);
+      }
+      
+      // Broadcast
+      console.log("Broadcasting transaction:", txHex);
+      const broadcastResponse = await fetch("https://mempool.emzy.de/testnet/api/tx", {
+        method: "POST",
+        body: txHex,
+        headers: { "Content-Type": "text/plain" },
+      });
+      
+      const txId = await broadcastResponse.text();
+      console.log("Minted! TxID:", txId);
+      
+      return txId;
+    } catch (err) {
+      console.error("Error during transaction signing or broadcast:", err);
+      throw err;
+    }
+  } catch (error) {
+    console.error("Error:", error.message);
+    throw error;
+  }
+}
 // Make userWallet globally accessible
 window.userWallet = {
 	connected: false,

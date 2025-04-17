@@ -51,6 +51,21 @@
       text-align: center;
       margin-top: 20px;
     }
+    .section-divider {
+      border-top: 1px solid #ddd;
+      margin: 30px 0;
+      padding-top: 20px;
+    }
+    .container {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      color: #2c3e50;
+      margin-top: 0;
+    }
   </style>
 <!-- Required libraries -->
 
@@ -64,50 +79,69 @@
   
   <button id="connect-wallet">Connect Wallet</button>
   
-  <h2>Create New Rune Token</h2>
-  
-  <div class="form-group">
-    <label for="token-name">Token Name (max 28 chars)</label>
-    <input type="text" id="token-name" maxlength="28" placeholder="TOKEN_NAME">
+  <div class="container">
+    <h2>Create New Rune Token</h2>
+    
+    <div class="form-group">
+      <label for="token-name">Token Name (max 28 chars)</label>
+      <input type="text" id="token-name" maxlength="28" placeholder="TOKEN_NAME">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-symbol">Token Symbol (max 4 chars)</label>
+      <input type="text" id="token-symbol" maxlength="4" placeholder="TKN">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-supply">Total Supply</label>
+      <input type="number" id="token-supply" placeholder="1000000">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-decimals">Decimals</label>
+      <input type="number" id="token-decimals" placeholder="18">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-premine">Premine (your initial allocation)</label>
+      <input type="number" id="token-premine" placeholder="5000">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-mint-cap">Mint Cap</label>
+      <input type="number" id="token-mint-cap" placeholder="1000000">
+    </div>
+    
+    <div class="form-group">
+      <label for="token-mint-amount">Mint Amount (per transaction)</label>
+      <input type="number" id="token-mint-amount" placeholder="1000">
+    </div>
+    
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="token-open-mint"> Open Mint (allow public minting)
+      </label>
+    </div>
+    
+    <button id="create-token" disabled>Create Token</button>
   </div>
   
-  <div class="form-group">
-    <label for="token-symbol">Token Symbol (max 4 chars)</label>
-    <input type="text" id="token-symbol" maxlength="4" placeholder="TKN">
+  <!-- New Minting Section -->
+  <div class="container">
+    <h2>Mint Existing Rune Token</h2>
+    
+    <div class="form-group">
+      <label for="mint-rune-id">Rune ID</label>
+      <input type="text" id="mint-rune-id" placeholder="Enter Rune ID (e.g., ABCDE12345)">
+    </div>
+    
+    <div class="form-group">
+      <label for="mint-amount">Amount to Mint</label>
+      <input type="number" id="mint-amount" placeholder="Amount to mint">
+    </div>
+    
+    <button id="mint-token">Mint Tokens</button>
   </div>
-  
-  <div class="form-group">
-    <label for="token-supply">Total Supply</label>
-    <input type="number" id="token-supply" placeholder="1000000">
-  </div>
-  
-  <div class="form-group">
-    <label for="token-decimals">Decimals</label>
-    <input type="number" id="token-decimals" placeholder="18">
-  </div>
-  
-  <div class="form-group">
-    <label for="token-premine">Premine (your initial allocation)</label>
-    <input type="number" id="token-premine" placeholder="5000">
-  </div>
-  
-  <div class="form-group">
-    <label for="token-mint-cap">Mint Cap</label>
-    <input type="number" id="token-mint-cap" placeholder="1000000">
-  </div>
-  
-  <div class="form-group">
-    <label for="token-mint-amount">Mint Amount (per transaction)</label>
-    <input type="number" id="token-mint-amount" placeholder="1000">
-  </div>
-  
-  <div class="form-group">
-    <label>
-      <input type="checkbox" id="token-open-mint"> Open Mint (allow public minting)
-    </label>
-  </div>
-  
-  <button id="create-token" disabled>Create Token</button>
   
   <div id="loading">
     <p>Processing transaction...</p>
@@ -115,8 +149,11 @@
   </div>
 
   <!-- Required Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/buffer-js@0.0.3/Buffer.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bitcoinjs-lib/0.2.0-1/bitcoinjs-min.js"></script>
-  <script defer src="index.js"></script>
+  <script src="https://bundle.run/buffer@6.0.3"></script>
+  <script>
+    window.Buffer = buffer.Buffer;
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib-browser@5.1.7/bitcoinjs.min.js" ></script>
+  <script src="index.js" defer></script>
 </body>
 </html>
