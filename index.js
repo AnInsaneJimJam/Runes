@@ -8,18 +8,30 @@ document.addEventListener("DOMContentLoaded", () => {
 	const mintTokenBtn = document.getElementById("mint-token");
 	const burnTokenBtn = document.getElementById("burn-token"); // New burn button
 	const walletStatusEl = document.getElementById("wallet-status");
+	const transferTokenBtn = document.getElementById("transfer-token");
 
 	// User wallet state
 	const userWallet = {
 		connected: false,
 		address: null,
 	};
-
+	
 	// Initialize wallet connection button
+	transferTokenBtn.addEventListener("click", handleTransferToken);
 	connectWalletBtn.addEventListener("click", connectWallet);
 	createTokenBtn.addEventListener("click", handleCreateToken);
 	mintTokenBtn.addEventListener("click", handleMintToken);
 	burnTokenBtn.addEventListener("click", handleBurnToken); // Add burn handler
+
+	 const originalUpdateWalletStatus = updateWalletStatus;
+		updateWalletStatus = function (connected, address) {
+			originalUpdateWalletStatus(connected, address);
+
+			const transferTokenBtn = document.getElementById("transfer-token");
+			if (transferTokenBtn) {
+				transferTokenBtn.disabled = !connected;
+			}
+		};
 
 	// Check if wallet is already connected
 	checkWalletConnection();
@@ -729,6 +741,235 @@ async function burnRune(runeId, amountToBurn, userAddress) {
 		}
 		throw error;
 	}
+}
+
+
+// === TRANSFER FUNCTIONALITY ===
+
+// Function to encode transfer runestone
+function encodeTransferRunestone(runeId, amount) {
+    return stringToHex(`RUNE:TRANSFER:${runeId}:${amount}`);
+}
+
+// Handle transfer token button click
+async function handleTransferToken() {
+    // Get transfer details from form
+    const runeId = document.getElementById("transfer-rune-id").value;
+    const amount = parseInt(document.getElementById("transfer-amount").value);
+    const destinationAddress = document.getElementById("transfer-destination").value;
+
+    // Validate inputs
+    if (!runeId || runeId.trim() === "") {
+        alert("Please enter a valid Rune ID");
+        return;
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+        alert("Please enter a valid amount to transfer");
+        return;
+    }
+
+    if (!destinationAddress || destinationAddress.trim() === "") {
+        alert("Please enter a valid destination address");
+        return;
+    }
+
+    // Ensure wallet is connected
+    if (!userWallet.connected) {
+        alert("Please connect your wallet first");
+        return;
+    }
+
+    try {
+        // Show loading indicator
+        document.getElementById("loading").style.display = "block";
+
+        // Transfer the rune
+        await transferRune(runeId, amount, userWallet.address, destinationAddress);
+
+        // Hide loading indicator
+        document.getElementById("loading").style.display = "none";
+
+        // Show success message
+        alert("Rune transferred successfully!");
+    } catch (error) {
+        console.error("Error transferring token:", error);
+        alert("Failed to transfer token: " + error.message);
+
+        // Hide loading indicator
+        document.getElementById("loading").style.display = "none";
+    }
+}
+
+// Transfer runes function
+async function transferRune(runeId, amountToTransfer, sourceAddress, destinationAddress) {
+    try {
+        // Ensure bitcoinjs is loaded
+        if (typeof bitcoinjs === "undefined") {
+            throw new Error("bitcoinjs-lib is not loaded");
+        }
+
+        console.log(`Transferring ${amountToTransfer} of rune ${runeId} to ${destinationAddress}`);
+
+        // Fetch UTXOs for the source address
+        const utxoResponse = await fetch(
+            `https://mempool.emzy.de/testnet/api/address/${sourceAddress}/utxo`
+        );
+        const utxos = await utxoResponse.json();
+        const utxo = utxos.find((u) => u.value >= 10000); // Need enough to cover fees
+
+        if (!utxo) throw new Error("Insufficient tBTC for transaction");
+        console.log(
+            `Found UTXO: ${utxo.txid}:${utxo.vout} with value ${utxo.value} sats`
+        );
+
+        // Create PSBT (Partially Signed Bitcoin Transaction)
+        const network = bitcoinjs.networks.testnet;
+        const psbt = new bitcoinjs.Psbt({ network });
+
+        // Get scriptPubKey for the input
+        const addressInfoResponse = await fetch(
+            `https://mempool.emzy.de/testnet/api/address/${sourceAddress}`
+        );
+        const addressInfo = await addressInfoResponse.json();
+        const scriptPubKey =
+            addressInfo.scriptPubKey ||
+            bitcoinjs.address
+                .toOutputScript(sourceAddress, network)
+                .toString("hex");
+
+        // Add input
+        psbt.addInput({
+            hash: utxo.txid,
+            index: utxo.vout,
+            witnessUtxo: {
+                script: Buffer.from(scriptPubKey, "hex"),
+                value: utxo.value,
+            },
+        });
+
+        // Create the RUNE_TRANSFER envelope
+        const runeTransferData = encodeTransferRunestone(runeId, amountToTransfer);
+        const data = Buffer.from(runeTransferData, "hex");
+
+        if (data.length > 80) {
+            throw new Error(
+                `OP_RETURN data too large: ${data.length} bytes (max 80)`
+            );
+        }
+
+        // Add OP_RETURN output with transfer instructions
+        psbt.addOutput({
+            script: bitcoinjs.script.compile([
+                bitcoinjs.opcodes.OP_RETURN,
+                data,
+            ]),
+            value: 0,
+        });
+
+        // Add destination output for the runes (must be at least dust limit)
+        psbt.addOutput({
+            address: destinationAddress,
+            value: 546, // Dust limit
+        });
+
+        // Add change output (minus fees)
+        const fee = 1000; // Adjust based on current testnet fees
+        const changeAmount = utxo.value - 546 - fee;
+
+        if (changeAmount < 0) {
+            throw new Error("Insufficient funds to cover transaction fees");
+        }
+
+        // If there's change to return
+        if (changeAmount > 546) {
+            psbt.addOutput({
+                address: sourceAddress,
+                value: changeAmount,
+            });
+        } else {
+            // If change is too small, add it to the fee
+            console.log("Change amount too small, adding to fee");
+        }
+
+        // Convert PSBT to base64 for signing
+        const psbtBase64 = psbt.toBase64();
+        const provider =
+            window.btc || window.bitcoinjsProvider || window.unisat;
+
+        if (!provider || !provider.signPsbt) {
+            throw new Error("Wallet does not support PSBT signing");
+        }
+
+        try {
+            const signedPsbtHex = await provider.signPsbt(psbtBase64);
+            console.log("Wallet returned:", signedPsbtHex);
+
+            // Parse the hex PSBT
+            const signedPsbt = bitcoinjs.Psbt.fromHex(signedPsbtHex, {
+                network,
+            });
+
+            // Try to extract transaction
+            let txHex;
+            try {
+                txHex = signedPsbt.extractTransaction().toHex();
+                console.log("Transaction size:", txHex.length / 2, "bytes");
+            } catch (extractError) {
+                console.log(
+                    "Could not extract directly, trying alternative methods"
+                );
+
+                // If the wallet supports better methods, use them
+                if (provider.pushPsbt) {
+                    return await provider.pushPsbt(signedPsbtHex);
+                }
+
+                if (provider.pushTx || provider.sendRawTransaction) {
+                    const pushMethod =
+                        provider.pushTx || provider.sendRawTransaction;
+                    return await pushMethod(signedPsbtHex);
+                }
+
+                throw new Error(
+                    "Cannot extract transaction: " + extractError.message
+                );
+            }
+
+            // Broadcast transaction
+            console.log("Broadcasting transaction...");
+            const broadcastResponse = await fetch(
+                "https://mempool.emzy.de/testnet/api/tx",
+                {
+                    method: "POST",
+                    body: txHex,
+                    headers: { "Content-Type": "text/plain" },
+                }
+            );
+
+            const txId = await broadcastResponse.text();
+            console.log("Rune transfer successful!");
+            console.log("Transaction ID:", txId);
+            console.log(`Transferred ${amountToTransfer} of rune ${runeId} to ${destinationAddress}`);
+            console.log("You can check this transaction at:");
+            console.log(`https://mempool.emzy.de/testnet/tx/${txId}`);
+
+            return txId;
+        } catch (err) {
+            console.error(
+                "Error during transaction signing or broadcast:",
+                err
+            );
+            throw err;
+        }
+    } catch (error) {
+        console.error("Error transferring runes:", error.message);
+        if (error.response) {
+            console.error("API Response data:", error.response.data);
+            console.error("API Response status:", error.response.status);
+        }
+        throw error;
+    }
 }
 
 // Make userWallet globally accessible

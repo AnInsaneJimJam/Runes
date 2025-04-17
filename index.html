@@ -126,7 +126,7 @@
     <button id="create-token" disabled>Create Token</button>
   </div>
   
-  <!-- New Minting Section -->
+  <!-- Minting Section -->
   <div class="container">
     <h2>Mint Existing Rune Token</h2>
     
@@ -140,7 +140,46 @@
       <input type="number" id="mint-amount" placeholder="Amount to mint">
     </div>
     
-    <button id="mint-token">Mint Tokens</button>
+    <button id="mint-token" disabled>Mint Tokens</button>
+  </div>
+  
+  <!-- NEW: Burn Section -->
+  <div class="container">
+    <h2>Burn Rune Token</h2>
+    
+    <div class="form-group">
+      <label for="burn-rune-id">Rune ID</label>
+      <input type="text" id="burn-rune-id" placeholder="Enter Rune ID (e.g., ABCDE12345)">
+    </div>
+    
+    <div class="form-group">
+      <label for="burn-amount">Amount to Burn</label>
+      <input type="number" id="burn-amount" placeholder="Amount to burn">
+    </div>
+    
+    <button id="burn-token" disabled>Burn Tokens</button>
+  </div>
+  
+  <!-- NEW: Transfer Section -->
+  <div class="container">
+    <h2>Transfer Rune Token</h2>
+    
+    <div class="form-group">
+      <label for="transfer-rune-id">Rune ID</label>
+      <input type="text" id="transfer-rune-id" placeholder="Enter Rune ID (e.g., ABCDE12345)">
+    </div>
+    
+    <div class="form-group">
+      <label for="transfer-amount">Amount to Transfer</label>
+      <input type="number" id="transfer-amount" placeholder="Amount to transfer">
+    </div>
+    
+    <div class="form-group">
+      <label for="transfer-destination">Destination Address</label>
+      <input type="text" id="transfer-destination" placeholder="Recipient's Bitcoin address">
+    </div>
+    
+    <button id="transfer-token" disabled>Transfer Tokens</button>
   </div>
   
   <div id="loading">
