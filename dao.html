@@ -3,214 +3,811 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rune Governance System</title>
+    <title>DAO - RuneCoinn</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="index.css">
     <style>
+        /* Additional DAO-specific styles */
+        :root {
+            --primary: #ff6b00;
+            --primary-light: #ff8b34;
+            --background-dark: #111827;
+            --background-medium: #1f2937;
+            --background-light: #2d3748;
+            --text-light: #e2e8f0;
+            --text-dim: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            background-color: var(--background-dark);
+            color: var(--text-light);
+            min-height: 100vh;
         }
         
-        h1, h2 {
-            color: #333;
+        /* Main Container */
+        .main-container {
+            position: relative;
+            min-height: 100vh;
+            margin-left: 280px;
+            transition: margin-left 0.3s ease;
+            background-color: var(--background-dark);
+            z-index: 1;
         }
         
-        .container {
-            margin-bottom: 30px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100%;
+            background-color: var(--background-medium);
+            border-right: 1px solid var(--background-light);
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
         }
         
-        .form-group {
-            margin-bottom: 15px;
+        .logo {
+            color: var(--primary);
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            padding-left: 1rem;
         }
         
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        
-        input, select {
+        /* Navigation */
+        .sidebar nav {
             width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
         }
         
-        button {
-            background-color: #0066cc;
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .sidebar li {
+            width: 100%;
+        }
+        
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+        
+        .sidebar a:hover {
+            background-color: var(--background-light);
+            color: var(--text-light);
+        }
+        
+        .sidebar a.active {
+            background-color: var(--background-light);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+        
+        /* Main Content */
+        .main {
+            padding: 2rem;
+            overflow-y: auto;
+            background-color: var(--background-dark);
+            min-height: 100vh;
+            width: 100%;
+            position: relative;
+            z-index: 5;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        .wallet-section {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .wallet-status {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background-color: var(--success);
+        }
+        
+        .connect-btn {
+            background-color: var(--primary);
             color: white;
             border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.15s ease;
         }
         
-        button:disabled {
-            background-color: #cccccc;
+        .connect-btn:hover {
+            background-color: var(--primary-light);
         }
         
-        .status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        
-        .connected {
-            color: green;
-        }
-        
-        #loading {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-        }
-        
+        /* Tab Navigation */
         .tabs {
             display: flex;
-            margin-bottom: 20px;
+            gap: 0.25rem;
+            border-bottom: 1px solid var(--background-light);
+            margin-bottom: 2rem;
         }
         
         .tab {
-            padding: 10px 20px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            color: var(--text-dim);
             cursor: pointer;
-            background-color: #f1f1f1;
-            border: 1px solid #ddd;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
+            border-bottom: 2px solid transparent;
         }
         
         .tab.active {
-            background-color: #fff;
-            border-bottom: 1px solid white;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
         }
         
+        /* Tab Content */
         .tab-content {
             display: none;
-            border: 1px solid #ddd;
-            padding: 20px;
-            border-radius: 0 5px 5px 5px;
         }
         
         .tab-content.active {
             display: block;
         }
+        
+        .content-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .content-title span {
+            color: var(--primary-color);
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: var(--background-medium);
+            border: 1px solid var(--background-light);
+            border-radius: 0.5rem;
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .form-submit {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .form-submit:hover {
+            background-color: var(--primary-light);
+        }
+        
+        .form-submit:disabled {
+            background-color: var(--text-dim);
+            cursor: not-allowed;
+        }
+        
+        /* Proposals List */
+        .proposal-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .proposal-card {
+            background-color: var(--dark-card);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .proposal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .proposal-meta {
+            font-size: 0.875rem;
+            color: var(--text-dim);
+        }
+        
+        .proposal-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            background-color: var(--background-light);
+        }
+        
+        .status-active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+        
+        .status-pending {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+        
+        .status-closed {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+        
+        .proposal-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .option-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background-color: var(--background-light);
+            border-radius: 0.25rem;
+            overflow: hidden;
+            margin-top: 0.25rem;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: var(--primary);
+        }
+        
+        .proposal-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        
+        .proposal-btn {
+            flex: 1;
+            padding: 0.5rem;
+            background-color: var(--background-light);
+            color: var(--text-light);
+            border: none;
+            border-radius: 0.25rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .proposal-btn.primary {
+            background-color: var(--primary);
+        }
+        
+        .proposal-btn.primary:hover {
+            background-color: var(--primary-light);
+        }
+        
+        .proposal-btn.secondary:hover {
+            background-color: var(--background-dark);
+        }
+        
+        /* Vote Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .modal-content {
+            background-color: var(--background-medium);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            width: 90%;
+            max-width: 500px;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        /* Loading indicator */
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin: 2rem 0;
+        }
+        
+        .spinner {
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-container {
+                margin-left: 0;
+                padding-top: 60px;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: fixed;
+                top: 0;
+                left: 0;
+                padding: 0.5rem;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                z-index: 20;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .mobile-toggle {
+                display: flex;
+            }
+            
+            .logo {
+                margin-right: 1rem;
+                margin-bottom: 0;
+                font-size: 1.25rem;
+            }
+            
+            .proposal-list {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar ul {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .sidebar li {
+                width: auto;
+            }
+        }
+        
+        /* Mobile Toggle */
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            background-color: var(--primary);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
     </style>
 </head>
 <body>
-    <h1>Rune Governance System</h1>
-    
-    <div class="container">
-        <h2>Wallet Connection</h2>
-        <div id="wallet-status">Wallet not connected</div>
-        <button id="connect-wallet">Connect Wallet</button>
+  <!-- Mobile Sidebar Toggle -->
+  <div class="mobile-toggle" id="mobile-toggle">
+    <i class="fas fa-bars"></i>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">RuneCoinn</div>
+    <nav>
+      <ul>
+        <li><a href="index.html"><i class="fas fa-pen"></i> Etch</a></li>
+        <li><a href="mint.html"><i class="fas fa-coins"></i> Mint</a></li>
+        <li><a href="transfer.html"><i class="fas fa-exchange-alt"></i> Transfer</a></li>
+        <li><a href="burn.html"><i class="fas fa-fire"></i> Burn</a></li>
+        <li><a href="dao.html" class="active"><i class="fas fa-users"></i> DAO</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <div class="main-container">
+    <!-- Main Content -->
+    <div class="main">
+        <!-- Header with Wallet Connection -->
+        <div class="header">
+            <h1>Bitcoin Rune Governance</h1>
+            
+            <div class="wallet-section">
+                <div class="wallet-status">
+                    <div class="status-indicator"></div>
+                    <span id="wallet-status">Connected: tb1q19...292g</span>
+                </div>
+                
+                <button id="connect-wallet" class="connect-btn">Wallet Connected</button>
+            </div>
+        </div>
+        
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <div class="tab active" data-tab="proposal">Create Proposal</div>
+            <div class="tab" data-tab="vote">Cast Vote</div>
+            <div class="tab" data-tab="results">View Results</div>
+        </div>
+        
+        <!-- Proposal Creation Tab -->
+        <div class="tab-content active" id="proposal-tab">
+            <h2 class="content-title"><span>|</span> Create Governance Proposal</h2>
+            
+            <form id="proposal-form">
+                <div class="form-group">
+                    <label class="form-label" for="proposal-title">Proposal Title</label>
+                    <input type="text" id="proposal-title" class="form-input" placeholder="Community Fund Allocation" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="proposal-description">Proposal Description</label>
+                    <textarea id="proposal-description" class="form-input" rows="5" placeholder="Describe your proposal in detail..." required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="proposal-options">Voting Options (comma-separated)</label>
+                    <input type="text" id="proposal-options" class="form-input" placeholder="Yes,No,Abstain" value="Yes,No,Abstain" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="proposal-quorum">Quorum Requirement</label>
+                    <input type="number" id="proposal-quorum" class="form-input" placeholder="1000" min="1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="proposal-duration">Duration (in blocks)</label>
+                    <input type="number" id="proposal-duration" class="form-input" placeholder="1000" min="100" value="1000" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="proposal-rune-id">Governance Rune ID</label>
+                    <input type="text" id="proposal-rune-id" class="form-input" placeholder="Enter your governance rune transaction ID" required>
+                </div>
+                
+                <button type="button" id="create-proposal" class="form-submit">Create Proposal</button>
+            </form>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>Creating proposal...</span>
+            </div>
+        </div>
+        
+        <!-- Vote Casting Tab -->
+        <div class="tab-content" id="vote-tab">
+            <h2 class="content-title"><span>|</span> Cast Your Vote</h2>
+            
+            <form id="vote-form">
+                <div class="form-group">
+                    <label class="form-label" for="result-proposer-address">Proposer Address</label>
+                    <input type="text" id="result-proposer-address" class="form-input" placeholder="Enter proposal creator's Bitcoin address">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-proposal-select">Select Proposal</label>
+                    <select id="vote-proposal-select" class="form-select">
+                        <option value="">Select a proposal</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-proposal-id">Proposal ID</label>
+                    <input type="text" id="vote-proposal-id" class="form-input" placeholder="Transaction ID of the proposal" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-option-select">Select Vote Option</label>
+                    <select id="vote-option-select" class="form-select">
+                        <option value="Y">Yes</option>
+                        <option value="N">No</option>
+                        <option value="A">Abstain</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-option">Vote Option</label>
+                    <input type="text" id="vote-option" class="form-input" placeholder="Y" value="Y" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-amount">Voting Power Amount</label>
+                    <input type="number" id="vote-amount" class="form-input" placeholder="1" min="1" value="1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="vote-rune-id">Your Governance Rune ID</label>
+                    <input type="text" id="vote-rune-id" class="form-input" placeholder="Your governance token transaction ID" required>
+                    <div class="checkbox-group" style="margin-top: 0.5rem;">
+                        <button type="button" id="validate-rune" class="proposal-btn secondary">Validate Rune</button>
+                        <span id="rune-status"></span>
+                    </div>
+                </div>
+                
+                <button type="button" id="cast-vote" class="form-submit">Cast Vote</button>
+            </form>
+        </div>
+        
+        <!-- Results Tab -->
+        <div class="tab-content" id="results-tab">
+            <h2 class="content-title"><span>|</span> Proposal Results</h2>
+            
+            <form id="results-form">
+                <div class="form-group">
+                    <label class="form-label" for="result-proposal-id">Proposal ID</label>
+                    <input type="text" id="result-proposal-id" class="form-input" placeholder="Transaction ID of the proposal" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="result-proposer-address">Proposer Address</label>
+                    <input type="text" id="result-proposer-address" class="form-input" placeholder="Enter proposal creator's Bitcoin address" required>
+                </div>
+                
+                <button type="button" id="get-results-btn" class="form-submit">Get Results</button>
+            </form>
+            
+            <div id="results-loading" class="loading">
+                <div class="spinner"></div>
+                <span>Fetching proposal results...</span>
+            </div>
+            
+            <div id="vote-results" class="results-container"></div>
+        </div>
+        
+        <!-- Active Proposals Section -->
+        <div class="proposals-section" style="margin-top: 3rem;">
+            <h2 class="content-title"><span>|</span> Active Proposals</h2>
+            
+            <div class="proposal-list">
+                <!-- Example Proposal Card -->
+                <div class="proposal-card">
+                    <div class="proposal-title">Community Fund Allocation</div>
+                    <div class="proposal-meta">Created by tb1q...292g • Ends in 850 blocks</div>
+                    <div class="proposal-status status-active">Active</div>
+                    
+                    <div class="proposal-options">
+                        <div class="option-item">
+                            <span>Yes</span>
+                            <span>75%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 75%"></div>
+                        </div>
+                        
+                        <div class="option-item">
+                            <span>No</span>
+                            <span>20%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 20%"></div>
+                        </div>
+                        
+                        <div class="option-item">
+                            <span>Abstain</span>
+                            <span>5%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 5%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="proposal-actions">
+                        <button class="proposal-btn primary">Vote</button>
+                        <button class="proposal-btn secondary">Details</button>
+                    </div>
+                </div>
+                
+                <!-- Example Proposal Card -->
+                <div class="proposal-card">
+                    <div class="proposal-title">Protocol Upgrade Proposal</div>
+                    <div class="proposal-meta">Created by tb1q...f4d2 • Ends in 532 blocks</div>
+                    <div class="proposal-status status-active">Active</div>
+                    
+                    <div class="proposal-options">
+                        <div class="option-item">
+                            <span>Yes</span>
+                            <span>90%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 90%"></div>
+                        </div>
+                        
+                        <div class="option-item">
+                            <span>No</span>
+                            <span>10%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 10%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="proposal-actions">
+                        <button class="proposal-btn primary">Vote</button>
+                        <button class="proposal-btn secondary">Details</button>
+                    </div>
+                </div>
+                
+                <!-- Example Proposal Card -->
+                <div class="proposal-card">
+                    <div class="proposal-title">Treasury Reallocation</div>
+                    <div class="proposal-meta">Created by tb1q...7x3e • Ends in 24 blocks</div>
+                    <div class="proposal-status status-pending">Pending</div>
+                    
+                    <div class="proposal-options">
+                        <div class="option-item">
+                            <span>For</span>
+                            <span>45%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 45%"></div>
+                        </div>
+                        
+                        <div class="option-item">
+                            <span>Against</span>
+                            <span>30%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 30%"></div>
+                        </div>
+                        
+                        <div class="option-item">
+                            <span>Abstain</span>
+                            <span>25%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 25%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="proposal-actions">
+                        <button class="proposal-btn primary">Vote</button>
+                        <button class="proposal-btn secondary">Details</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
+
+<!-- Required Scripts -->
+<script src="https://bundle.run/buffer@6.0.3"></script>
+<script>
+  // Make buffer available globally
+  if (typeof window.buffer === 'undefined' && typeof buffer !== 'undefined') {
+    window.buffer = buffer;
+  }
+  if (typeof window.Buffer === 'undefined' && typeof buffer !== 'undefined') {
+    window.Buffer = buffer.Buffer;
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib-browser@5.1.7/bitcoinjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bitcoinjs-lib/5.1.7/bitcoinjs-lib.min.js"></script>
+
+<script>
+  // Make bitcoinjs-lib available globally
+  window.bitcoinjs = bitcoinjs;
+  // Signal that bitcoinjs-lib is loaded
+  window.bitcoinjsLoaded = true;
+  
+  // Mobile sidebar toggle
+  document.addEventListener('DOMContentLoaded', function() {
+    const mobileToggle = document.getElementById('mobile-toggle');
+    const sidebar = document.getElementById('sidebar');
     
-    <div class="tabs">
-        <div class="tab active" data-tab="create">Create Governance Rune</div>
-        <div class="tab" data-tab="propose">Create Proposal</div>
-        <div class="tab" data-tab="vote">Cast Vote</div>
-    </div>
-    
-    <div id="create-tab" class="tab-content active">
-        <h2>Create Governance Rune</h2>
-        <div class="form-group">
-            <label for="token-name">Rune Name (max 28 chars)</label>
-            <input type="text" id="token-name" placeholder="PROJECT-GOV" maxlength="28">
-        </div>
-        <div class="form-group">
-            <label for="token-symbol">Symbol (max 4 chars)</label>
-            <input type="text" id="token-symbol" placeholder="PGOV" maxlength="4">
-        </div>
-        <div class="form-group">
-            <label for="token-supply">Total Supply</label>
-            <input type="number" id="token-supply" placeholder="1000000" value="1000000">
-        </div>
-        <div class="form-group">
-            <label for="token-decimals">Decimals</label>
-            <input type="number" id="token-decimals" placeholder="0" value="0">
-        </div>
-        <div class="form-group">
-            <label for="token-premine">Premine Amount</label>
-            <input type="number" id="token-premine" placeholder="100000" value="100000">
-        </div>
-        <div class="form-group">
-            <label for="token-mint-cap">Mint Cap</label>
-            <input type="number" id="token-mint-cap" placeholder="1000000" value="1000000">
-        </div>
-        <div class="form-group">
-            <label for="token-mint-amount">Mint Amount Per Transaction</label>
-            <input type="number" id="token-mint-amount" placeholder="1000" value="1000">
-        </div>
-        <div class="form-group">
-            <label for="token-open-mint">
-                <input type="checkbox" id="token-open-mint"> Open Mint (anyone can mint)
-            </label>
-        </div>
-        <button id="create-token" disabled>Create Governance Rune</button>
-    </div>
-    
-    <div id="propose-tab" class="tab-content">
-        <h2>Create Governance Proposal</h2>
-        <div class="form-group">
-            <label for="proposal-title">Proposal Title</label>
-            <input type="text" id="proposal-title" placeholder="Change Treasury Allocation">
-        </div>
-        <div class="form-group">
-            <label for="proposal-description">Description</label>
-            <textarea id="proposal-description" rows="4" style="width: 100%;" placeholder="This proposal aims to modify the treasury allocation to increase development funding."></textarea>
-        </div>
-        <div class="form-group">
-            <label for="proposal-options">Voting Options (comma separated)</label>
-            <input type="text" id="proposal-options" placeholder="Yes,No,Abstain" value="Yes,No,Abstain">
-        </div>
-        <div class="form-group">
-            <label for="proposal-quorum">Quorum Percentage</label>
-            <input type="number" id="proposal-quorum" placeholder="10" value="10" min="1" max="100">
-        </div>
-        <div class="form-group">
-            <label for="proposal-duration">Voting Period (blocks)</label>
-            <input type="number" id="proposal-duration" placeholder="1000" value="1000" min="1">
-        </div>
-        <button id="create-proposal">Create Proposal</button>
-    </div>
-    
-    <div id="vote-tab" class="tab-content">
-        <h2>Cast Vote on Proposal</h2>
-        <div class="form-group">
-            <label for="vote-proposal-id">Proposal ID</label>
-            <input type="text" id="vote-proposal-id" placeholder="Enter proposal ID">
-        </div>
-        <div class="form-group">
-            <label for="vote-option">Your Vote</label>
-            <select id="vote-option">
-                <option value="1">Yes</option>
-                <option value="2">No</option>
-                <option value="3">Abstain</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="vote-amount">Amount of Governance Runes to Vote With</label>
-            <input type="number" id="vote-amount" placeholder="Amount of runes to vote with">
-        </div>
-        <div class="form-group">
-            <label for="vote-rune-id">Governance Rune ID</label>
-            <input type="text" id="vote-rune-id" placeholder="Enter your governance rune ID">
-        </div>
-        <button id="cast-vote">Cast Vote</button>
-    </div>
-    
-    <div id="loading">
-        <p>Processing transaction...</p>
-    </div>
-    <script src="https://bundle.run/buffer@6.0.3"></script>
-    <script>
-      window.Buffer = buffer.Buffer;
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib-browser@5.1.7/bitcoinjs.min.js"></script>
-    <script src="index.js"></script>
+    if (mobileToggle && sidebar) {
+      mobileToggle.addEventListener('click', function() {
+        sidebar.classList.toggle('active');
+      });
+    }
+  });
+</script>
+<script defer src="wallet.js"></script>
+<script defer src="dao.js"></script>
 </body>
 </html>

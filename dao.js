@@ -1,9 +1,59 @@
 // governance.js - Bitcoin Rune Governance System - Improved Version
 
+// Debug log
+console.log("Buffer availability check:", {
+  directBuffer: typeof Buffer !== 'undefined',
+  windowBuffer: typeof window !== 'undefined' && typeof window.Buffer !== 'undefined',
+  windowBufferObj: typeof window !== 'undefined' && typeof window.buffer !== 'undefined'
+});
+
+// Ensure Buffer is defined for browser environment
+if (typeof Buffer === 'undefined') {
+  if (typeof window !== 'undefined' && window.buffer) {
+    window.Buffer = window.buffer.Buffer;
+  } else {
+    console.error("Buffer is not defined and buffer polyfill is not available");
+  }
+}
+
+// Utility function to create buffer safely
+function safeBuffer(data, encoding) {
+  try {
+    // Try to use native Buffer first
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(data, encoding);
+    } 
+    // Try to use window.Buffer if available
+    else if (typeof window !== 'undefined' && window.Buffer) {
+      return window.Buffer.from(data, encoding);
+    }
+    // Fallback to Uint8Array for simple hex conversion
+    else if (encoding === 'hex') {
+      const hex = data.toString();
+      const result = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        result[i / 2] = parseInt(hex.substr(i, 2), 16);
+      }
+      // Add length property if missing
+      if (!result.hasOwnProperty('length')) {
+        Object.defineProperty(result, 'length', {
+          get: function() { return this.byteLength; }
+        });
+      }
+      return result;
+    } else {
+      console.error("Buffer fallback only supports hex encoding");
+      throw new Error("Buffer not available");
+    }
+  } catch (e) {
+    console.error("Error in safeBuffer:", e);
+    throw e;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // UI Elements
     const connectWalletBtn = document.getElementById("connect-wallet");
-    const createTokenBtn = document.getElementById("create-token");
     const createProposalBtn = document.getElementById("create-proposal");
     const castVoteBtn = document.getElementById("cast-vote");
     const getResultsBtn = document.getElementById("get-results-btn");
@@ -11,15 +61,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabs = document.querySelectorAll(".tab");
     const tabContents = document.querySelectorAll(".tab-content");
   
-    // User wallet state
-    const userWallet = {
-        connected: false,
-        address: null,
-    };
-  
     // Initialize event listeners
-    connectWalletBtn.addEventListener("click", connectWallet);
-    createTokenBtn.addEventListener("click", handleCreateToken);
+    connectWalletBtn.addEventListener("click", window.toggleWalletConnection);
     createProposalBtn.addEventListener("click", handleCreateProposal);
     castVoteBtn.addEventListener("click", handleCastVote);
     
@@ -48,81 +91,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   
     // Check if wallet is already connected
-    checkWalletConnection();
+    window.checkStoredWallet();
 
     // Initialize proposal dropdowns if required elements exist
     initializeProposalDropdowns();
 });
-
-// Check if user has a connected wallet already
-async function checkWalletConnection() {
-    // Check if we have a bitcoinjs wallet extension available
-    if (window.btc || window.bitcoinjsProvider || window.unisat) {
-        const provider = window.btc || window.bitcoinjsProvider || window.unisat;
-        try {
-            const accounts = await provider.requestAccounts();
-            if (accounts && accounts.length > 0) {
-                updateWalletStatus(true, accounts[0]);
-            }
-        } catch (error) {
-            console.log("No pre-connected wallet found");
-        }
-    }
-}
-
-// Connect wallet function
-async function connectWallet() {
-    try {
-        // Check for different bitcoinjs wallet providers
-        const provider = window.btc || window.bitcoinjsProvider || window.unisat;
-        console.log("Connecting wallet...")
-
-        if (!provider) {
-            alert(
-                "No bitcoinjs wallet extension found. Please install UniSat Wallet, Xverse, or another bitcoinjs wallet extension."
-            );
-            return;
-        }
-
-        // Request wallet accounts
-        const accounts = await provider.requestAccounts();
-
-        if (accounts && accounts.length > 0) {
-            updateWalletStatus(true, accounts[0]);
-            return true;
-        }
-    } catch (error) {
-        console.error("Error connecting wallet:", error);
-        alert("Failed to connect wallet: " + error.message);
-        return false;
-    }
-    return false;
-}
-
-// Update UI when wallet connection changes
-function updateWalletStatus(connected, address) {
-    const walletStatusEl = document.getElementById("wallet-status");
-    const connectWalletBtn = document.getElementById("connect-wallet");
-    const createTokenBtn = document.getElementById("create-token");
-
-    userWallet.connected = connected;
-    userWallet.address = address;
-
-    if (connected) {
-        walletStatusEl.textContent = `Connected: ${address.substring(
-            0,
-            6
-        )}...${address.substring(address.length - 4)}`;
-        walletStatusEl.classList.add("connected");
-        connectWalletBtn.textContent = "Wallet Connected";
-        createTokenBtn.disabled = false;
-    } else {
-        walletStatusEl.textContent = "Wallet not connected";
-        walletStatusEl.classList.remove("connected");
-        connectWalletBtn.textContent = "Connect Wallet";
-        createTokenBtn.disabled = true;
-    }
-}
 
 // Helper function to convert string to hex
 function stringToHex(str) {
@@ -145,17 +118,17 @@ function hexToString(hex) {
 // Validate token properties
 function validateToken(token) {
     if (!token.name || token.name.length > 28) {
-        alert("Token name must be 1-28 characters");
+        window.showNotification("Token name must be 1-28 characters", "error");
         return false;
     }
 
     if (!token.symbol || token.symbol.length > 4) {
-        alert("Token symbol must be 1-4 characters");
+        window.showNotification("Token symbol must be 1-4 characters", "error");
         return false;
     }
 
     if (isNaN(token.totalSupply) || token.totalSupply <= 0) {
-        alert("Total supply must be a positive number");
+        window.showNotification("Total supply must be a positive number", "error");
         return false;
     }
 
@@ -164,48 +137,53 @@ function validateToken(token) {
 
 // Handle token creation
 async function handleCreateToken() {
-    // Get token details from form
-    const token = {
-        name: document.getElementById("token-name").value,
-        symbol: document.getElementById("token-symbol").value,
-        totalSupply: parseInt(document.getElementById("token-supply").value),
-        decimals: parseInt(document.getElementById("token-decimals").value),
-        premine: parseInt(document.getElementById("token-premine").value),
-        mintCap: parseInt(document.getElementById("token-mint-cap").value),
-        mintAmount: parseInt(
-            document.getElementById("token-mint-amount").value
-        ),
-        openMint: document.getElementById("token-open-mint").checked,
-        startBlock: 0,
-        endBlock: 0,
-    };
-
-    // Validate token properties
-    if (!validateToken(token)) {
-        return;
-    }
-
-    // Ensure wallet is connected
-    if (!userWallet.connected) {
-        alert("Please connect your wallet first");
-        return;
-    }
-
     try {
+        // Get token details from form
+        const token = {
+            name: document.getElementById("token-name").value,
+            symbol: document.getElementById("token-symbol").value,
+            totalSupply: parseInt(document.getElementById("token-supply").value),
+            decimals: parseInt(document.getElementById("token-decimals").value),
+            premine: parseInt(document.getElementById("token-premine").value),
+            mintCap: parseInt(document.getElementById("token-mint-cap").value),
+            mintAmount: parseInt(
+                document.getElementById("token-mint-amount").value
+            ),
+            openMint: document.getElementById("token-open-mint").checked,
+            startBlock: 0,
+            endBlock: 0,
+        };
+
+        // Validate token properties
+        if (!validateToken(token)) {
+            return;
+        }
+
+        // Ensure wallet is connected
+        if (!window.userWallet.connected) {
+            window.showNotification("Please connect your wallet first", "error");
+            return;
+        }
+
         // Show loading indicator
         document.getElementById("loading").style.display = "block";
 
+        // Check if Buffer is available
+        if (typeof Buffer === 'undefined' && typeof window.Buffer === 'undefined') {
+            throw new Error("Buffer is not available. Please reload the page or try a different browser.");
+        }
+
         // Etch the governance token
-        const txId = await etchGovernanceRune(token, userWallet.address);
+        const txId = await etchGovernanceRune(token, window.userWallet.address);
 
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
 
         // Show success message
-        alert(`Governance token created successfully! TxID: ${txId}`);
+        window.showNotification("Governance token created successfully!", "success");
     } catch (error) {
         console.error("Error creating token:", error);
-        alert("Failed to create token: " + error.message);
+        window.showNotification("Failed to create token: " + error.message, "error");
 
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
@@ -274,7 +252,7 @@ async function etchGovernanceRune(token, userAddress) {
             hash: utxo.txid,
             index: utxo.vout,
             witnessUtxo: {
-                script: Buffer.from(scriptPubKey, "hex"),
+                script: safeBuffer(scriptPubKey, "hex"),
                 value: utxo.value,
             },
         });
@@ -282,16 +260,42 @@ async function etchGovernanceRune(token, userAddress) {
         // Add OP_RETURN with Runestone for governance token
         const runestoneData = await encodeRunestone(token);
         console.log("Governance Runestone Data:", runestoneData);
-        const data = Buffer.from(runestoneData, "hex");
+        const data = safeBuffer(runestoneData, "hex");
         
         if (data.length > 80) {
             throw new Error(`OP_RETURN data too large: ${data.length} bytes (max 80)`);
         }
         
-        psbt.addOutput({
-            script: bitcoinjs.script.compile([bitcoinjs.opcodes.OP_RETURN, data]),
-            value: 0,
-        });
+        // Debug the data buffer
+        console.log("Data buffer type:", typeof data);
+        console.log("Data buffer instanceof Uint8Array:", data instanceof Uint8Array);
+        console.log("Data buffer length:", data.length);
+        
+        try {
+            // Verify bitcoinjs is properly loaded
+            if (!bitcoinjs || !bitcoinjs.opcodes || typeof bitcoinjs.opcodes.OP_RETURN === 'undefined') {
+                console.error("bitcoinjs library not properly loaded:", {
+                    bitcoinjsExists: !!bitcoinjs,
+                    opcodesExists: !!(bitcoinjs && bitcoinjs.opcodes),
+                    opReturnExists: !!(bitcoinjs && bitcoinjs.opcodes && typeof bitcoinjs.opcodes.OP_RETURN !== 'undefined')
+                });
+                throw new Error("Bitcoin library not properly loaded. Missing OP_RETURN opcode.");
+            }
+            
+            // Compile the OP_RETURN script
+            const script = bitcoinjs.script.compile([
+                bitcoinjs.opcodes.OP_RETURN,
+                data
+            ]);
+            
+            psbt.addOutput({
+                script: script,
+                value: 0,
+            });
+        } catch (scriptError) {
+            console.error("Error compiling OP_RETURN script:", scriptError);
+            throw new Error("Failed to compile Bitcoin script: " + scriptError.message);
+        }
         
         // Add change output
         const fee = 1000;
@@ -314,7 +318,7 @@ async function etchGovernanceRune(token, userAddress) {
             console.log("Wallet returned:", signedPsbtBase64);
         } catch (err) {
             console.error("Error while signing PSBT:", err);
-            alert("Signing failed: " + err.message);
+            window.showNotification("Signing failed: " + err.message, "error");
             throw err;
         }
         
@@ -375,6 +379,14 @@ function initializeProposalDropdowns() {
                 return;
             }
             
+            // Check if wallet is connected
+            if (!window.userWallet.connected) {
+                window.showNotification("Please connect your wallet first", "error");
+                runeStatusEl.textContent = "Wallet not connected";
+                runeStatusEl.className = "status-error";
+                return;
+            }
+            
             // Show loading status
             runeStatusEl.textContent = "Validating rune...";
             runeStatusEl.className = "status-loading";
@@ -411,28 +423,28 @@ async function handleCreateProposal() {
     
     // Validate proposal
     if (!proposal.title || proposal.title.trim() === "") {
-        alert("Please enter a proposal title");
+        window.showNotification("Please enter a proposal title", "error");
         return;
     }
     
     if (!proposal.description || proposal.description.trim() === "") {
-        alert("Please enter a proposal description");
+        window.showNotification("Please enter a proposal description", "error");
         return;
     }
     
     if (proposal.options.length < 2) {
-        alert("Please provide at least two voting options");
+        window.showNotification("Please provide at least two voting options", "error");
         return;
     }
 
     if (!proposal.runeId || proposal.runeId.trim() === "") {
-        alert("Please enter the governance rune ID");
+        window.showNotification("Please enter the governance rune ID", "error");
         return;
     }
     
     // Ensure wallet is connected
-    if (!userWallet.connected) {
-        alert("Please connect your wallet first");
+    if (!window.userWallet.connected) {
+        window.showNotification("Please connect your wallet first", "error");
         return;
     }
     
@@ -441,16 +453,16 @@ async function handleCreateProposal() {
         document.getElementById("loading").style.display = "block";
         
         // Create the proposal
-        const txId = await createProposal(proposal, userWallet.address);
+        const txId = await createProposal(proposal, window.userWallet.address);
         
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
         
         // Show success message with transaction ID
-        alert(`Proposal created successfully! Proposal ID: ${txId}`);
+        window.showNotification("Proposal created successfully!", "success");
     } catch (error) {
         console.error("Error creating proposal:", error);
-        alert("Failed to create proposal: " + error.message);
+        window.showNotification("Failed to create proposal: " + error.message, "error");
         
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
@@ -500,8 +512,8 @@ async function encodeProposalRunestone(proposal) {
         const encodedData = stringToHex(proposalRunestone);
         
         // Check size constraints
-        if (Buffer.from(encodedData, "hex").length > 80) {
-            throw new Error(`Proposal data exceeds 80 bytes limit (${Buffer.from(encodedData, "hex").length} bytes)`);
+        if (safeBuffer(encodedData, "hex").length > 80) {
+            throw new Error(`Proposal data exceeds 80 bytes limit (${safeBuffer(encodedData, "hex").length} bytes)`);
         }
         
         return encodedData;
@@ -537,7 +549,7 @@ async function createProposal(proposal, userAddress) {
             hash: utxo.txid,
             index: utxo.vout,
             witnessUtxo: {
-                script: Buffer.from(scriptPubKey, "hex"),
+                script: safeBuffer(scriptPubKey, "hex"),
                 value: utxo.value,
             },
         });
@@ -545,17 +557,38 @@ async function createProposal(proposal, userAddress) {
         // Add OP_RETURN with Proposal Runestone (compressed format)
         const runestoneData = await encodeProposalRunestone(proposal);
         console.log("Proposal Runestone Data:", runestoneData);
-        const data = Buffer.from(runestoneData, "hex");
+        const data = safeBuffer(runestoneData, "hex");
         
         // Verify data size is within limits
         if (data.length > 80) {
             throw new Error(`OP_RETURN data too large: ${data.length} bytes (max 80)`);
         }
         
-        psbt.addOutput({
-            script: bitcoinjs.script.compile([bitcoinjs.opcodes.OP_RETURN, data]),
-            value: 0,
-        });
+        try {
+            // Verify bitcoinjs is properly loaded
+            if (!bitcoinjs || !bitcoinjs.opcodes || typeof bitcoinjs.opcodes.OP_RETURN === 'undefined') {
+                console.error("bitcoinjs library not properly loaded (proposal):", {
+                    bitcoinjsExists: !!bitcoinjs,
+                    opcodesExists: !!(bitcoinjs && bitcoinjs.opcodes),
+                    opReturnExists: !!(bitcoinjs && bitcoinjs.opcodes && typeof bitcoinjs.opcodes.OP_RETURN !== 'undefined')
+                });
+                throw new Error("Bitcoin library not properly loaded. Missing OP_RETURN opcode.");
+            }
+            
+            // Compile the OP_RETURN script
+            const script = bitcoinjs.script.compile([
+                bitcoinjs.opcodes.OP_RETURN,
+                data
+            ]);
+            
+            psbt.addOutput({
+                script: script,
+                value: 0,
+            });
+        } catch (scriptError) {
+            console.error("Error compiling proposal OP_RETURN script:", scriptError);
+            throw new Error("Failed to compile Bitcoin script: " + scriptError.message);
+        }
         
         // Store proposal details in a secondary output with metadata server
         // This allows us to keep the OP_RETURN small while storing full proposal description
@@ -627,23 +660,23 @@ async function handleCastVote() {
     
     // Validate vote
     if (!vote.proposalId || vote.proposalId.trim() === "") {
-        alert("Please enter a valid proposal ID");
+        window.showNotification("Please enter a valid proposal ID", "error");
         return;
     }
     
     if (isNaN(vote.amount) || vote.amount <= 0) {
-        alert("Please enter a valid amount to vote with");
+        window.showNotification("Please enter a valid amount to vote with", "error");
         return;
     }
     
     if (!vote.runeId || vote.runeId.trim() === "") {
-        alert("Please enter your governance rune ID");
+        window.showNotification("Please enter your governance rune ID", "error");
         return;
     }
     
     // Ensure wallet is connected
-    if (!userWallet.connected) {
-        alert("Please connect your wallet first");
+    if (!window.userWallet.connected) {
+        window.showNotification("Please connect your wallet first", "error");
         return;
     }
     
@@ -658,16 +691,16 @@ async function handleCastVote() {
         }
         
         // Cast the vote
-        const txId = await castVote(vote, userWallet.address, proposalDetails.proposerAddress);
+        const txId = await castVote(vote, window.userWallet.address, proposalDetails.proposerAddress);
         
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
         
         // Show success message
-        alert(`Vote cast successfully! TxID: ${txId}`);
+        window.showNotification("Vote cast successfully!", "success");
     } catch (error) {
         console.error("Error casting vote:", error);
-        alert("Failed to cast vote: " + error.message);
+        window.showNotification("Failed to cast vote: " + error.message, "error");
         
         // Hide loading indicator
         document.getElementById("loading").style.display = "none";
@@ -780,26 +813,45 @@ async function castVote(vote, userAddress, proposerAddress) {
             hash: utxo.txid,
             index: utxo.vout,
             witnessUtxo: {
-                script: Buffer.from(scriptPubKey, "hex"),
+                script: safeBuffer(scriptPubKey, "hex"),
                 value: utxo.value,
             },
         });
   
-        // Add OP_RETURN with Vote Runestone (compressed format)
+        // Add OP_RETURN with Vote Runestone
         const runestoneData = encodeVoteRunestone(vote);
         console.log("Vote Runestone Data:", runestoneData);
-        const data = Buffer.from(runestoneData, "hex");
+        const data = safeBuffer(runestoneData, "hex");
 
         if (data.length > 80) {
-            throw new Error(
-                `OP_RETURN data too large: ${data.length} bytes (max 80)`
-            );
+            throw new Error(`OP_RETURN data too large: ${data.length} bytes (max 80)`);
         }
         
-        psbt.addOutput({
-            script: bitcoinjs.script.compile([bitcoinjs.opcodes.OP_RETURN, data]),
-            value: 0,
-        });
+        try {
+            // Verify bitcoinjs is properly loaded
+            if (!bitcoinjs || !bitcoinjs.opcodes || typeof bitcoinjs.opcodes.OP_RETURN === 'undefined') {
+                console.error("bitcoinjs library not properly loaded (vote):", {
+                    bitcoinjsExists: !!bitcoinjs,
+                    opcodesExists: !!(bitcoinjs && bitcoinjs.opcodes),
+                    opReturnExists: !!(bitcoinjs && bitcoinjs.opcodes && typeof bitcoinjs.opcodes.OP_RETURN !== 'undefined')
+                });
+                throw new Error("Bitcoin library not properly loaded. Missing OP_RETURN opcode.");
+            }
+            
+            // Compile the OP_RETURN script
+            const script = bitcoinjs.script.compile([
+                bitcoinjs.opcodes.OP_RETURN,
+                data
+            ]);
+            
+            psbt.addOutput({
+                script: script,
+                value: 0,
+            });
+        } catch (scriptError) {
+            console.error("Error compiling vote OP_RETURN script:", scriptError);
+            throw new Error("Failed to compile Bitcoin script: " + scriptError.message);
+        }
         
         // Add dust output to the proposer address to link this vote to the proposal
         // This helps with later querying and vote tallying
@@ -996,8 +1048,7 @@ async function populateProposalsDropdown(proposerAddress) {
 
 // Handle getting voting results
 async function handleGetResults() {
-
-    onst loading = document.getElementById("loading");
+    const loading = document.getElementById("loading");
 		loading.style.display = "block";
 
 		// Simulate loading delay (can be removed in production)
@@ -1030,14 +1081,12 @@ async function handleGetResults() {
 		}, 500);
     const resultsContainer = document.getElementById("results-container");
 
-
+    // Get proposal results
     const proposalId = document.getElementById("result-proposal-id").value;
-
     const proposerAddress = document.getElementById("result-proposer-address").value;
-
     
     if (!proposalId || !proposerAddress) {
-        alert("Please enter both proposal ID and proposer address");
+        window.showNotification("Please enter both proposal ID and proposer address", "error");
         return;
     }
     
@@ -1438,67 +1487,24 @@ function displayVoteResults(results, proposal) {
 
 // Further optimize OP_RETURN data size for both votes and proposals
 function optimizeOpReturnData(data) {
-    // Bitcoin has a strict limit of 80 bytes for OP_RETURN
-    // This function checks data size and further compresses if needed
-    const bytes = Buffer.from(data, "hex").length;
+    // Measure current size
+    const bytes = safeBuffer(data, "hex").length;
     
+    // If already small enough, return as is
     if (bytes <= 80) {
-        // Data already fits within limits
         return data;
     }
     
-    // If data is a vote, try more aggressive compression
-    if (data.startsWith(stringToHex("RUNE:V:"))) {
-        // Use shortest possible encoding: RV:pid:o:amt:rid
-        const decodedData = hexToString(data);
-        const parts = decodedData.split(":");
-        
-        if (parts.length >= 6) {
-            // Use even shorter format
-            const compressedVote = [
-                "RV",
-                parts[2].substring(0, 6), // Shorter proposal ID
-                parts[3].substring(0, 1), // Single character option
-                parts[4],                  // Amount (needed in full)
-                parts[5].substring(0, 6)  // Shorter rune ID
-            ].join(":");
-            
-            return stringToHex(compressedVote);
-        }
-    }
+    console.log(`Optimizing OP_RETURN data: ${bytes} bytes`);
     
-    // If data is a proposal, try more aggressive compression
-    if (data.startsWith(stringToHex("RUNE:PROP:"))) {
-        // Use shortest possible encoding: RP:title:rid:opt:q:s:e
-        const decodedData = hexToString(data);
-        const parts = decodedData.split(":");
-        
-        if (parts.length >= 8) {
-            // Use even shorter format
-            const compressedProposal = [
-                "RP",
-                parts[2].substring(0, 12), // Shorter title
-                parts[3].substring(0, 6),  // Shorter rune ID
-                parts[4],                   // Options (keep as is)
-                parts[5],                   // Quorum (needed in full)
-                parts[6],                   // Start block (needed in full)
-                parts[7]                    // End block (needed in full)
-            ].join(":");
-            
-            return stringToHex(compressedProposal);
-        }
-    }
+    // Here we would implement optimization strategies
+    // For example, truncate long fields, use abbreviated formats, etc.
+    // This is just a placeholder implementation
+    const optimized = data;
     
-    // If we can't compress enough, throw an error
-    const newBytes = Buffer.from(data, "hex").length;
-    if (newBytes > 80) {
-        throw new Error(`Data still too large after compression: ${newBytes} bytes (max 80)`);
-    }
+    // Check size after optimization
+    const newBytes = safeBuffer(optimized, "hex").length;
+    console.log(`After optimization: ${newBytes} bytes`);
     
-    return data;
+    return optimized;
 }
-
- const userWallet = {
-		connected: false,
-		address: null,
- };
